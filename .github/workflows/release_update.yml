@@ -25,30 +25,34 @@ jobs:
     runs-on: ubuntu-latest
     if: endsWith(github.ref, '-alpha') || endsWith(github.ref, '-beta') || endsWith(github.ref, '-rc') || endsWith(github.ref, '-stable')
     permissions:
+      contents: read
       id-token: write
       attestations: write
     steps:
       - uses: actions/checkout@v7
         with:
           submodules: true
+          persist-credentials: false
       - uses: actions/setup-java@v6
         with:
           distribution: 'zulu'
           java-version: 21
       - uses: gradle/actions/setup-gradle@v6
-      - name: Write sign info
-        id: sign-release-apk
-        if: github.repository_owner == 'LawnchairLauncher'
-        run: |
-          if [ ! -z "${{ secrets.KEYSTORE }}" ]; then
-            echo storePassword='${{ secrets.KEYSTORE_PASSWORD }}' >> keystore.properties
-            echo keyAlias='${{ secrets.KEY_ALIAS }}' >> keystore.properties
-            echo keyPassword='${{ secrets.KEY_PASSWORD }}' >> keystore.properties
-            echo storeFile='${{ github.workspace }}/key.jks' >> keystore.properties
-            echo ${{ secrets.KEYSTORE }} | base64 --decode > ${{ github.workspace }}/key.jks
-          fi
+      - name: Prepare release signing
+        id: signing
+        env:
+          KEYSTORE: ${{ secrets.KEYSTORE }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: python3 tools/ci/signing.py prepare
       - name: Build release APK
-        run: ./gradlew assembleLawnWithQuickstepGithubRelease
+        run: ./gradlew assembleLawnWithQuickstepGithubRelease --no-configuration-cache --no-daemon --no-scan
+      - name: Clean up signing material
+        if: always()
+        env:
+          SIGNING_STATE: ${{ steps.signing.outputs.cleanup_state }}
+        run: python3 tools/ci/signing.py cleanup
       - name: Rename artifact
         env:
           ARTIFACT_NAME: ${{ github.event.inputs.artifactName }}

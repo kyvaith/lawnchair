@@ -1,0 +1,63 @@
+plugins {
+    id 'com.android.library' version '9.5.0'
+}
+
+android {
+    namespace 'app.lawnchair.deck.storage.tests'
+    compileSdk {
+        version = release(37) {
+            minorApiLevel = 2
+        }
+    }
+    buildToolsVersion '37.0.0'
+    defaultConfig {
+        minSdk = 26
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+    sourceSets.main.kotlin.directories.add('build/generated/production')
+    sourceSets.test.kotlin.directories.add('build/generated/regression')
+    testOptions {
+        unitTests.includeAndroidResources = true
+        unitTests.all {
+            maxHeapSize = '2g'
+            systemProperty 'robolectric.dependency.repo.url', 'https://repo.maven.apache.org/maven2'
+            jvmArgs '--add-opens=java.base/java.lang=ALL-UNNAMED',
+                '--add-opens=java.base/java.util=ALL-UNNAMED',
+                '--add-opens=java.base/java.io=ALL-UNNAMED',
+                '--add-opens=java.base/java.net=ALL-UNNAMED',
+                '--add-opens=java.base/java.security=ALL-UNNAMED',
+                '--add-opens=java.base/java.text=ALL-UNNAMED',
+                '--add-opens=java.base/jdk.internal.access=ALL-UNNAMED',
+                '--add-opens=java.desktop/java.awt.font=ALL-UNNAMED',
+                '--add-opens=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED'
+        }
+    }
+}
+
+// Test the actual production file, never a duplicate implementation of the snapshot algorithm.
+tasks.register('syncProductionSource', Copy) {
+    from('../../lawnchair/src/app/lawnchair/deck') {
+        include 'DeckLayoutStore.kt', 'DeckReconciler.kt', 'DeckShortcutPins.kt'
+    }
+    from('../../lawnchair/src/app/lawnchair/folders') {
+        include 'FolderSortPolicy.kt', 'FolderSortStore.kt', 'FolderUsageStore.kt'
+    }
+    into(layout.buildDirectory.dir('generated/production'))
+}
+tasks.register('syncRegressionSource', Copy) {
+    from('../../lawnchair/tests/app/lawnchair/deck/DeckReconcilerTest.kt')
+    into(layout.buildDirectory.dir('generated/regression'))
+}
+tasks.configureEach {
+    if (name.startsWith('compile') && name.endsWith('Kotlin')) {
+        dependsOn('syncProductionSource', 'syncRegressionSource')
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.16.1'
+}

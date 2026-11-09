@@ -304,6 +304,10 @@ public class DatabaseHelper extends NoLocaleSQLiteHelper implements
      */
     public void createEmptyDB(SQLiteDatabase db) {
         try (SQLiteTransaction t = new SQLiteTransaction(db)) {
+            // LC-Note: Reset inactive layouts together with Favorites.
+            app.lawnchair.deck.DeckLayoutStore.clearSnapshots(db);
+            // LC-Note: A fresh workspace must not inherit original orders for reused folder IDs.
+            app.lawnchair.folders.FolderSortStore.clear(db);
             dropTable(db, Favorites.TABLE_NAME);
             dropTable(db, "workspaceScreens");
             onCreate(db);
@@ -331,6 +335,9 @@ public class DatabaseHelper extends NoLocaleSQLiteHelper implements
             final IntSet validWidgets = IntSet.wrap(LauncherDbUtils.queryIntArray(false, db,
                     Favorites.TABLE_NAME, Favorites.APPWIDGET_ID,
                     "itemType=" + Favorites.ITEM_TYPE_APPWIDGET, null, null));
+            // LC-Note: Inactive Deck layouts still own their widget host bindings.
+            validWidgets.addAll(IntSet.wrap(
+                    app.lawnchair.deck.DeckLayoutStore.getSavedWidgetIds(db)));
             boolean isAnyWidgetRemoved = false;
             for (int widgetId : allWidgets) {
                 if (!validWidgets.contains(widgetId)) {

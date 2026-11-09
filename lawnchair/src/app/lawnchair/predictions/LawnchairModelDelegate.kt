@@ -4,6 +4,8 @@ import android.content.Context
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.annotation.WorkerThread
+import app.lawnchair.deck.DeckLayoutStore
+import app.lawnchair.deck.DeckModel
 import app.lawnchair.preferences2.PreferenceManager2
 import app.lawnchair.preferences2.firstCached
 import com.android.launcher3.InvariantDeviceProfile
@@ -11,8 +13,10 @@ import com.android.launcher3.Utilities
 import com.android.launcher3.dagger.ApplicationContext
 import com.android.launcher3.model.PredictedItemFactory
 import com.android.launcher3.model.QuickstepModelDelegate
+import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.pm.UserCache
 import com.android.launcher3.util.Executors.MODEL_EXECUTOR
+import com.android.launcher3.util.IntSparseArrayMap
 import javax.inject.Inject
 import javax.inject.Named
 import kotlinx.coroutines.CoroutineName
@@ -43,6 +47,15 @@ class LawnchairModelDelegate @Inject constructor(
     private var prefObserverScope: CoroutineScope? = null
 
     @WorkerThread
+    override fun loadAndAddExtraModelItems(outLoadedItems: IntSparseArrayMap<ItemInfo>) {
+        if (DeckLayoutStore.isDeckActive(mContext, mModel.modelDbController)) {
+            DeckModel.filterPrivateItems(mContext, mModel.modelDbController, outLoadedItems)
+        } else {
+            super.loadAndAddExtraModelItems(outLoadedItems)
+        }
+    }
+
+    @WorkerThread
     override fun workspaceLoadComplete() {
         super.workspaceLoadComplete()
         registerPredictionModeChanged()
@@ -52,6 +65,7 @@ class LawnchairModelDelegate @Inject constructor(
     override fun modelLoadComplete() {
         super.modelLoadComplete()
         syncPredictor()
+        DeckModel.afterLoad(mModel)
     }
 
     @WorkerThread
@@ -81,6 +95,7 @@ class LawnchairModelDelegate @Inject constructor(
     override fun validateData() {
         super.validateData()
         syncPredictor()
+        mModel.enqueueModelUpdateTask(DeckModel::reconcile)
     }
 
     @WorkerThread
@@ -102,6 +117,8 @@ class LawnchairModelDelegate @Inject constructor(
     }
 
     private fun currentPredictionMode(): PredictionMode {
+        // Suggested apps would create another movable representation in a single-layer workspace.
+        if (prefs2.deckLayout.firstCached()) return NoPredictor
         // All predictor targets can't be run on device older than Q
         if (!Utilities.ATLEAST_Q || !prefs2.enableGlobalPrediction.firstCached()) {
             return NoPredictor

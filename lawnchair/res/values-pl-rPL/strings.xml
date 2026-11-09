@@ -206,7 +206,7 @@
     <string name="always_reload_icons_description">Avoid caching to reload icons immediately when theme or accent color changes</string>
     <string name="always_reload_icons_warning">This will cause icons to refresh regularly, impacting performance. Turn off if the icon pack doesn\'t update regularly.</string>
     <string name="show_deck_layout">Układ talii</string>
-    <string name="show_deck_layout_description">Pokaż opcję układu, aby ukryć szufladę aplikacji i automatycznie dodać nowe aplikacje do ekranu głównego</string>
+    <string name="show_deck_layout_description">Pokaż jednopoziomowy układ ekranu głównego bez szuflady aplikacji</string>
     <string name="material_expressive_label">Material 3 Expressive</string>
     <string name="material_expressive_description">Enable Material 3 Expressive changes in the workspace</string>
     <string name="folder_shape_label">Folder shape</string>
@@ -600,7 +600,7 @@
     <string name="wallpaper_background_blur_factor">Próg efektu rozmycia</string>
     <string name="home_lawn_deck_label">Talia</string>
     <string name="home_lawn_deck_label_beta">Talia (Beta)</string>
-    <string name="home_lawn_deck_description">Effortlessly access your apps with Deck, a drawerless experience designed for simplicity and seamless organization</string>
+    <string name="home_lawn_deck_description">Aplikacje bezpośrednio na ekranie głównym: jedno miejsce dla każdej aplikacji, bez szuflady</string>
     <string name="auto_add_shortcuts_label">Dodaj nowe aplikacje do ekranu głównego</string>
     <string name="minus_one_enable">Pokaż wiadomości</string>
     <string name="minus_one_unavailable">Brak zainstalowanych aplikacji wiadomości</string>
@@ -864,4 +864,12 @@
     <string name="lawnchair_actions">Actions</string>
     <string name="lawnchair_action_failed">Failed to trigger action</string>
     <string name="please_wait">Please wait…</string>
+    <string name="folder_sort_title">Sortuj folder</string>
+    <string name="folder_sort_alphabetical">Alfabetycznie (A–Z)</string>
+    <string name="folder_sort_most_used">Najczęściej używane (automatycznie)</string>
+    <string name="folder_sort_most_used_hint">Kolejność najczęściej używanych aplikacji aktualizuje się przy otwieraniu folderu. Uwzględnia uruchomienia z tego launchera.</string>
+    <string name="folder_sort_rename">Zmień nazwę folderu</string>
+    <string name="folder_sort_restore_original">Przywróć pierwotną kolejność</string>
+    <string name="folder_sort_applied">Zmieniono kolejność w folderze</string>
+    <string name="folder_sort_failed">Nie udało się zmienić kolejności w folderze. Spróbuj ponownie.</string>
 </resources>

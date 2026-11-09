@@ -251,6 +251,15 @@ public class StateManager<S extends BaseState<S>, T extends StatefulContainer<S>
 
     private void goToState(
             S state, boolean animated, long delay, AnimatorListener listener) {
+        // LC-Note: Deck has no All Apps surface, including keyboard and intent entry points.
+        if (!mContainer.canGoToState(state)) {
+            if (listener != null) {
+                AnimatorSet cancelled = new AnimatorSet();
+                listener.onAnimationCancel(cancelled);
+                listener.onAnimationEnd(cancelled);
+            }
+            return;
+        }
         if (enableStateManagerProtoLog() && Utilities.ATLEAST_S) {
             StateManagerProtoLogProxy.logGoToState(
                     mState, state, getTrimmedStackTrace("StateManager.goToState"));
@@ -316,6 +325,15 @@ public class StateManager<S extends BaseState<S>, T extends StatefulContainer<S>
 
     private void goToStateAnimated(S state, S fromState,
             AnimatorListener listener) {
+        // LC-Note: A delayed transition may outlive a change of home-screen layout.
+        if (!mContainer.canGoToState(state)) {
+            if (listener != null) {
+                AnimatorSet cancelled = new AnimatorSet();
+                listener.onAnimationCancel(cancelled);
+                listener.onAnimationEnd(cancelled);
+            }
+            return;
+        }
         // Since state mBaseState can be reached from multiple states, just assume that the
         // transition plays in reverse and use the same duration as previous state.
         mConfig.duration = state == mBaseState
@@ -344,6 +362,10 @@ public class StateManager<S extends BaseState<S>, T extends StatefulContainer<S>
      */
     public AnimatorSet createAtomicAnimation(
             S fromState, S toState, StateAnimationConfig config) {
+        // LC-Note: Apply the same layout policy to gesture and overview animations.
+        if (!mContainer.canGoToState(toState)) {
+            return new AnimatorSet();
+        }
         if (enableStateManagerProtoLog() && Utilities.ATLEAST_S) {
             StateManagerProtoLogProxy.logCreateAtomicAnimation(
                     mState, toState, getTrimmedStackTrace("StateManager.createAtomicAnimation"));
@@ -384,6 +406,10 @@ public class StateManager<S extends BaseState<S>, T extends StatefulContainer<S>
 
     public AnimatorPlaybackController createAnimationToNewWorkspace(S state,
             StateAnimationConfig config) {
+        // LC-Note: A blocked surface gets an inert controller, without changing launcher state.
+        if (!mContainer.canGoToState(state)) {
+            return new PendingAnimation(config.duration).createPlaybackController();
+        }
         config.animProps |= StateAnimationConfig.USER_CONTROLLED;
         cancelAnimation();
         config.copyTo(mConfig);
@@ -536,6 +562,11 @@ public class StateManager<S extends BaseState<S>, T extends StatefulContainer<S>
      * @param toState The state we are animating towards.
      */
     public void setCurrentAnimation(AnimatorSet anim, S toState) {
+        // LC-Note: Custom animations must also respect the layout's available surfaces.
+        if (!mContainer.canGoToState(toState)) {
+            anim.cancel();
+            return;
+        }
         cancelAnimation();
         setCurrentAnimation(anim);
         anim.addListener(createStateAnimationListener(toState));

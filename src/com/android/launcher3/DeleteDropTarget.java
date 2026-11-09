@@ -33,17 +33,13 @@ import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.LauncherAppWidgetInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
 import com.android.launcher3.util.Preconditions;
-import app.lawnchair.preferences2.PreferenceCacheExtensionsKt;
-
-import app.lawnchair.preferences2.PreferenceManager2;
+import app.lawnchair.deck.DeckUiPolicy;
 
 public class DeleteDropTarget extends ButtonDropTarget {
 
     private final StatsLogManager mStatsLogManager;
 
     private StatsLogManager.LauncherEvent mLauncherEvent;
-
-    private final PreferenceManager2 pref2;
 
     public DeleteDropTarget(Context context) {
         this(context, null, 0);
@@ -56,7 +52,6 @@ public class DeleteDropTarget extends ButtonDropTarget {
     public DeleteDropTarget(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
         this.mStatsLogManager = StatsLogManager.newInstance(context);
-        pref2 = PreferenceManager2.getInstance(context);
     }
 
     @Override
@@ -76,6 +71,10 @@ public class DeleteDropTarget extends ButtonDropTarget {
      * @return true for items that should have a "Remove" action in accessibility.
      */
     private boolean supportsAccessibilityDrop(ItemInfo info, View view) {
+        // LC-Note: Apps and collections are owned by the Deck workspace, not removable pins.
+        if (DeckUiPolicy.isEnabled(getContext()) && !DeckUiPolicy.canRemove(getContext(), info)) {
+            return false;
+        }
         if (info instanceof WorkspaceItemInfo) {
             // Support the action unless the item is in a context menu.
             return canRemove(info);
@@ -119,14 +118,9 @@ public class DeleteDropTarget extends ButtonDropTarget {
         }
     }
 
-    private boolean isCanDrop(ItemInfo item){
-        return !(item.itemType == LauncherSettings.Favorites.ITEM_TYPE_APPLICATION ||
-                item.itemType == LauncherSettings.Favorites.ITEM_TYPE_FOLDER);
-    }
-
     private boolean canRemove(ItemInfo item) {
-        boolean isDeckLayoutFirst = PreferenceCacheExtensionsKt.firstCached(pref2.getDeckLayout());
-        return isDeckLayoutFirst ? isCanDrop(item) : item.id != ItemInfo.NO_ID;
+        // LC-Note: Share the same removal policy for touch, keyboard, and accessibility.
+        return DeckUiPolicy.canRemove(getContext(), item);
     }
 
     /**
@@ -169,7 +163,8 @@ public class DeleteDropTarget extends ButtonDropTarget {
         // because we already remove the drag view from the folder (if the drag originated from
         // a folder) in Folder.beginDrag()
         CharSequence announcement = getContext().getString(R.string.item_removed);
-        if (!PreferenceCacheExtensionsKt.firstCached(pref2.getDeckLayout())) {
+        // LC-Note: Widgets and deep shortcuts remain removable in Deck, including with TalkBack.
+        if (!DeckUiPolicy.isEnabled(getContext()) || canRemove(item)) {
             mDropTargetHandler.onAccessibilityDelete(view, item, announcement);
         }
     }

@@ -54,6 +54,11 @@ public interface StatefulContainer<STATE_TYPE extends BaseState<STATE_TYPE>> ext
      */
     StateManager<STATE_TYPE, ?> getStateManager();
 
+    // LC-Note: Allow a launcher layout to disable a surface without changing other containers.
+    default boolean canGoToState(STATE_TYPE state) {
+        return true;
+    }
+
     /**
      * Called when transition to state ends
      *

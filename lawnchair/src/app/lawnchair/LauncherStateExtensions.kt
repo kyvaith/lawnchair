@@ -1,5 +1,6 @@
 package app.lawnchair
 
+import app.lawnchair.deck.DeckUiPolicy
 import com.android.app.animation.Interpolators
 import com.android.launcher3.Launcher
 import com.android.launcher3.LauncherState
@@ -10,6 +11,7 @@ import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
 
 suspend fun Launcher.animateToAllApps() {
+    if (DeckUiPolicy.isEnabled(this)) return
     suspendCancellableCoroutine { cont ->
         val duration = LauncherState.ALL_APPS.getTransitionDuration(this, true).toLong()
         val config = StateAnimationConfig()

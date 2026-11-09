@@ -31,33 +31,47 @@ env:
 
 jobs:
   build-debug-apk:
+    permissions:
+      contents: read
     strategy:
       matrix:
-        build-variant: [ assembleLawnWithQuickstepNightlyRelease, assembleLawnWithQuickstepGithubDebug, assembleLawnWithQuickstepPlayDebug ]
+        # Fork and PR CI need no production signing key. The dedicated manual workflow builds
+        # signed fork releases. Official trusted pushes retain their nightly release artifact.
+        build-variant: ${{ fromJSON(github.repository_owner == 'LawnchairLauncher' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && '["assembleLawnWithQuickstepNightlyRelease","assembleLawnWithQuickstepGithubDebug","assembleLawnWithQuickstepPlayDebug"]' || '["assembleLawnWithQuickstepGithubDebug","assembleLawnWithQuickstepPlayDebug"]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
           submodules: true
+          persist-credentials: false
       - uses: actions/setup-java@v6
         with:
           distribution: 'zulu'
           java-version: 21
       - uses: gradle/actions/setup-gradle@v6
-        with:
-          cache-encryption-key: Da25KUVSE5jbGds2zXmfXw==
-      - name: Write sign info
-        if: github.repository_owner == 'LawnchairLauncher'
-        run: |
-          if [ ! -z "${{ secrets.KEYSTORE }}" ]; then
-            echo storePassword='${{ secrets.KEYSTORE_PASSWORD }}' >> keystore.properties
-            echo keyAlias='${{ secrets.KEY_ALIAS }}' >> keystore.properties
-            echo keyPassword='${{ secrets.KEY_PASSWORD }}' >> keystore.properties
-            echo storeFile='${{ github.workspace }}/key.jks' >> keystore.properties
-            echo ${{ secrets.KEYSTORE }} | base64 --decode > ${{ github.workspace }}/key.jks
-          fi
+      - name: Prepare release signing
+        id: signing
+        if: contains(matrix.build-variant, 'Release') && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        env:
+          KEYSTORE: ${{ secrets.KEYSTORE }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: python3 tools/ci/signing.py prepare
       - name: Build APK
-        run: ./gradlew ${{ matrix.build-variant }}
+        env:
+          BUILD_VARIANT: ${{ matrix.build-variant }}
+        run: |
+          if [[ "$BUILD_VARIANT" == *Release ]]; then
+            ./gradlew "$BUILD_VARIANT" --no-configuration-cache --no-daemon --no-scan
+          else
+            ./gradlew "$BUILD_VARIANT"
+          fi
+      - name: Clean up signing material
+        if: always()
+        env:
+          SIGNING_STATE: ${{ steps.signing.outputs.cleanup_state }}
+        run: python3 tools/ci/signing.py cleanup
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
@@ -75,6 +89,8 @@ jobs:
           distribution: 'zulu'
           java-version: 21
       - uses: gradle/actions/setup-gradle@v6
+      - name: Test signing helper
+        run: python3 -m unittest discover -s tools/ci/tests -p test_signing.py
       - run: ./gradlew spotlessCheck
 
   send-notifications:

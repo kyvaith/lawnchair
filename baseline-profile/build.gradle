@@ -17,6 +17,7 @@ android {
         lawn { dimension = "app" }
         withQuickstep { dimension = "recents" }
         github { dimension = "channel" }
+        fork { dimension = "channel" }
         nightly { dimension = "channel" }
         play { dimension = "channel" }
     }

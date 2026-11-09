@@ -246,7 +246,7 @@
     <string name="always_reload_icons_warning">This will cause icons to refresh regularly, impacting performance. Turn off if the icon pack doesn\'t update regularly.</string>
 
     <string name="show_deck_layout">Deck layout</string>
-    <string name="show_deck_layout_description">Show a layout option to hide the app drawer and automatically add new apps to the home screen</string>
+    <string name="show_deck_layout_description">Show a single-layer home screen layout without an app drawer</string>
 
     <string name="material_expressive_label">Material 3 Expressive</string>
     <string name="material_expressive_description">Enable Material 3 Expressive changes in the workspace</string>
@@ -732,7 +732,7 @@
 
     <string name="home_lawn_deck_label">Deck</string>
     <string name="home_lawn_deck_label_beta">Deck (Beta)</string>
-    <string name="home_lawn_deck_description">Effortlessly access your apps with Deck, a drawerless experience designed for simplicity and seamless organization</string>
+    <string name="home_lawn_deck_description">Keep your apps directly on the home screen, with one place for each app and no app drawer</string>
 
     <string name="auto_add_shortcuts_label">Add new apps to home screen</string>
 
@@ -1094,4 +1094,12 @@
     <string name="lawnchair_action_failed">Failed to trigger action</string>
 
     <string name="please_wait">Please wait…</string>
+    <string name="folder_sort_title">Sort folder</string>
+    <string name="folder_sort_alphabetical">Alphabetically (A–Z)</string>
+    <string name="folder_sort_most_used">Most used (automatic)</string>
+    <string name="folder_sort_most_used_hint">Most used updates when you open this folder. It counts app launches from this launcher.</string>
+    <string name="folder_sort_rename">Rename folder</string>
+    <string name="folder_sort_restore_original">Restore original order</string>
+    <string name="folder_sort_applied">Folder order updated</string>
+    <string name="folder_sort_failed">Could not change the folder order. Please try again.</string>
 </resources>

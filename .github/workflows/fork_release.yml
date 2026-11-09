@@ -1,0 +1,44 @@
+name: Build signed fork release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fork-release-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: 'zulu'
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Test signing helper
+        run: python3 -m unittest discover -s tools/ci/tests -p test_signing.py
+      - name: Prepare release signing
+        id: signing
+        env:
+          KEYSTORE: ${{ secrets.KEYSTORE }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: python3 tools/ci/signing.py prepare
+      - name: Build fork release APK
+        run: ./gradlew assembleLawnWithQuickstepForkRelease --no-configuration-cache --no-daemon --no-scan
+      - name: Clean up signing material
+        if: always()
+        env:
+          SIGNING_STATE: ${{ steps.signing.outputs.cleanup_state }}
+        run: python3 tools/ci/signing.py cleanup
+      - name: Upload fork release APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: Lawnchair-Native-Deck-Fork-Release
+          path: build/outputs/apk/lawnWithQuickstepFork/release/*.apk
+          if-no-files-found: error

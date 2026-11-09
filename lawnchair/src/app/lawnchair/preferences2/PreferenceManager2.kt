@@ -813,7 +813,8 @@ class PreferenceManager2 @Inject constructor(
     val deckLayout = preference(
         key = booleanPreferencesKey(name = "enable_lawn_deck"),
         defaultValue = false,
-        onSet = { reloadHelper.reloadIcons() },
+        // LawndeckManager reloads after committing the layout. An onSet reload could cancel
+        // a running loader while DeckLayoutStore repairs this preference after interruption.
     )
 
     val showDeckLayout = preference(

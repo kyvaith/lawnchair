@@ -1,5 +1,7 @@
 ﻿package app.lawnchair.ui.preferences.components
 
+import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableStateOf
@@ -33,33 +36,41 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import app.lawnchair.deck.LawndeckManager
-import app.lawnchair.gestures.config.GestureHandlerConfig
 import app.lawnchair.preferences.getAdapter
-import app.lawnchair.preferences.preferenceManager
 import app.lawnchair.preferences2.preferenceManager2
 import app.lawnchair.ui.preferences.components.controls.SwitchPreferenceWithPreview
 import app.lawnchair.util.BackHandler
 import com.android.launcher3.R
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @Composable
 fun HomeLayoutSettings(
     modifier: Modifier = Modifier,
 ) {
     val prefs2 = preferenceManager2()
-    val prefs = preferenceManager()
     val context = LocalContext.current
 
     val deskLayout = prefs2.deckLayout.getAdapter()
-    val addNewAppToHome = prefs.addIconToHome.getAdapter()
 
     val deckManager = remember { LawndeckManager(context) }
     val coroutineScope = rememberCoroutineScope()
 
     var isLoading by remember { mutableStateOf(false) }
-    var loadingMessage by remember { mutableStateOf("") }
+    var isReady by remember { mutableStateOf(false) }
+
+    // Resolve a committed switch after an interrupted preference write before allowing a new one.
+    LaunchedEffect(deckManager) {
+        try {
+            deckManager.refreshMode()
+            isReady = true
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (exception: Exception) {
+            Log.e("HomeLayoutSettings", "Could not read the saved layout mode", exception)
+            Toast.makeText(context, exception.message ?: "Could not read the home screen layout.", Toast.LENGTH_LONG).show()
+        }
+    }
 
     // Block back button when loading
     if (isLoading) {
@@ -88,19 +99,11 @@ fun HomeLayoutSettings(
                     CircularProgressIndicator(
                         modifier = Modifier.padding(bottom = 16.dp),
                     )
-                    if (loadingMessage.isNotEmpty()) {
-                        Text(
-                            text = loadingMessage,
-                            textAlign = TextAlign.Center,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    } else {
-                        Text(
-                            text = stringResource(R.string.please_wait),
-                            textAlign = TextAlign.Center,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
+                    Text(
+                        text = stringResource(R.string.please_wait),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
             },
             confirmButton = {},
@@ -111,34 +114,25 @@ fun HomeLayoutSettings(
     SwitchPreferenceWithPreview(
         label = stringResource(R.string.layout),
         checked = deskLayout.state.value,
+        enabled = isReady && !isLoading,
         onCheckedChange = { newValue ->
-            isLoading = true
-            loadingMessage = ""
-            if (newValue) {
+            if (newValue != deskLayout.state.value && !isLoading) {
+                isLoading = true
                 coroutineScope.launch {
-                    prefs2.swipeUpGestureHandler.set(GestureHandlerConfig.NoOp)
-                    prefs2.deckLayout.set(true)
-                    addNewAppToHome.onChange(true)
-                    withContext(Dispatchers.IO) {
-                        deckManager.enableLawndeck { message ->
-                            // Update on main thread using coroutine scope
-                            coroutineScope.launch(Dispatchers.Main) {
-                                loadingMessage = message
-                            }
+                    try {
+                        if (newValue) {
+                            deckManager.enableLawndeck()
+                        } else {
+                            deckManager.disableLawndeck()
                         }
+                    } catch (exception: CancellationException) {
+                        throw exception
+                    } catch (exception: Exception) {
+                        Log.e("HomeLayoutSettings", "Could not switch the home screen layout", exception)
+                        Toast.makeText(context, exception.message ?: "Could not switch the home screen layout.", Toast.LENGTH_LONG).show()
+                    } finally {
+                        isLoading = false
                     }
-                    isLoading = false
-                    loadingMessage = ""
-                }
-            } else {
-                coroutineScope.launch {
-                    prefs2.swipeUpGestureHandler.set(GestureHandlerConfig.OpenAppDrawer)
-                    prefs2.deckLayout.set(false)
-                    withContext(Dispatchers.IO) {
-                        deckManager.disableLawndeck()
-                    }
-                    isLoading = false
-                    loadingMessage = ""
                 }
             }
         },

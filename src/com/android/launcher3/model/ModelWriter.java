@@ -382,6 +382,15 @@ public class ModelWriter {
             // updated in
             // the background.
             for (ItemInfo item: items) {
+                // LC-Note: A new folder can reuse a previously deleted folder's persisted ID.
+                // Snapshot restore uses ModelDbController directly and retains its own metadata.
+                if (item instanceof com.android.launcher3.model.data.FolderInfo) {
+                    app.lawnchair.folders.FolderSortStore.forgetNewFolder(
+                            mModel.getModelDbController().getDb(),
+                            app.lawnchair.deck.DeckLayoutStore.isDeckActive(
+                                    mContext, mModel.getModelDbController()) ? "deck" : "desktop",
+                            item.id);
+                }
                 final ContentWriter writer = new ContentWriter(mContext);
                 item.onAddToDatabase(writer);
                 writer.put(Favorites._ID, item.id);
@@ -466,7 +475,13 @@ public class ModelWriter {
         if (holder != null && !info.isCustomWidget() && info.isWidgetIdAllocated()) {
             // Deleting an app widget ID is a void call but writes to disk before returning
             // to the caller...
-            enqueueDeleteRunnable(newModelTask(() -> holder.deleteAppWidgetId(info.appWidgetId)));
+            enqueueDeleteRunnable(newModelTask(() -> {
+                // LC-Note: Another saved Deck layout can still own this widget host binding.
+                if (app.lawnchair.deck.DeckLayoutStore.getSavedWidgetIds(
+                        mModel.getModelDbController().getDb()).indexOf(info.appWidgetId) < 0) {
+                    holder.deleteAppWidgetId(info.appWidgetId);
+                }
+            }));
         }
         deleteItemFromDatabase(info, reason);
     }

@@ -20,6 +20,7 @@ import android.content.Intent
 import android.content.pm.ShortcutInfo
 import android.os.UserHandle
 import androidx.annotation.WorkerThread
+import app.lawnchair.deck.DeckModel
 import com.android.launcher3.celllayout.CellPosMapper
 import com.android.launcher3.dagger.ApplicationContext
 import com.android.launcher3.dagger.LauncherAppSingleton
@@ -410,6 +411,11 @@ constructor(
                 return@execute
             }
             task.execute(taskControllerProvider.get(), mBgDataModel, mBgAllAppsList)
+            // LC-Note: Deck owns application membership after every completed model update,
+            // including profile changes and shortcut-install requests, not only OP_ADD broadcasts.
+            if (isModelLoaded()) {
+                DeckModel.reconcile(taskControllerProvider.get(), mBgDataModel, mBgAllAppsList)
+            }
         }
     }
 

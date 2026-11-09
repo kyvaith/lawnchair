@@ -31,10 +31,14 @@ import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.taskbar.TaskbarControllers;
 import com.android.launcher3.taskbar.overlay.TaskbarOverlayContext;
 import com.android.launcher3.util.PackageUserKey;
+import com.android.launcher3.util.SafeCloseable;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import app.lawnchair.deck.DeckTaskbarPolicy;
+import app.lawnchair.deck.DeckUiPolicy;
 /**
  * Handles the all apps overlay window initialization, updates, and its data.
  * <p>
@@ -64,9 +68,16 @@ public final class TaskbarAllAppsController {
 
     private Map<PackageUserKey, Integer> mPackageUserKeytoUidMap = Collections.emptyMap();
 
+    // LC-Note: Taskbar All Apps has its own window, outside the launcher's state manager.
+    private @Nullable SafeCloseable mDeckObserver;
+
     /** Initialize the controller. */
     public void init(TaskbarControllers controllers, boolean allAppsVisible) {
         mControllers = controllers;
+        // LC-Note: Close an existing drawer immediately when the layout switches to Deck.
+        mDeckObserver = DeckTaskbarPolicy.observe(controllers.taskbarActivityContext, () -> {
+            if (mSlideInView != null) mSlideInView.close(false);
+        });
 
         /*
          * Recreate All Apps if it was open in the previous Taskbar instance (e.g. the configuration
@@ -79,6 +90,11 @@ public final class TaskbarAllAppsController {
 
     /** Clean up the controller. */
     public void onDestroy() {
+        // LC-Note: The preference observer belongs to this taskbar controller's lifetime.
+        if (mDeckObserver != null) {
+            mDeckObserver.close();
+            mDeckObserver = null;
+        }
         cleanUpOverlay();
     }
 
@@ -130,6 +146,10 @@ public final class TaskbarAllAppsController {
     }
 
     private void toggle(boolean showKeyboard) {
+        // LC-Note: In Deck the taskbar opens home search, never another pinnable app list.
+        if (DeckTaskbarPolicy.redirect(mControllers.taskbarActivityContext)) {
+            return;
+        }
         if (isOpen()) {
             mSlideInView.close(true);
         } else {
@@ -149,6 +169,10 @@ public final class TaskbarAllAppsController {
     }
 
     private void show(boolean animate, boolean showKeyboard) {
+        // LC-Note: Also block restoration of a previously open drawer after a configuration change.
+        if (DeckUiPolicy.isEnabled(mControllers.taskbarActivityContext)) {
+            return;
+        }
         if (mAppsView != null) {
             return;
         }

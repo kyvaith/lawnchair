@@ -68,6 +68,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
+import app.lawnchair.deck.DeckUiPolicy;
+
 public class LauncherAccessibilityDelegate extends BaseAccessibilityDelegate<Launcher> {
 
     private static final String TAG = "LauncherAccessibilityDelegate";
@@ -154,6 +156,10 @@ public class LauncherAccessibilityDelegate extends BaseAccessibilityDelegate<Lau
     }
 
     private boolean supportAddToWorkSpace(ItemInfo item) {
+        // LC-Note: Deck apps already belong to the workspace; do not offer duplicate pins.
+        if (!DeckUiPolicy.canAddToWorkspace(mContext, item)) {
+            return false;
+        }
         return ((item instanceof AppInfo)
                     && (((AppInfo) item).runtimeStatusFlags & FLAG_NOT_PINNABLE) == 0)
                 || ((item instanceof WorkspaceItemInfo)
@@ -432,6 +438,13 @@ public class LauncherAccessibilityDelegate extends BaseAccessibilityDelegate<Lau
      */
     public boolean addToWorkspace(ItemInfo item, boolean accessibility,
             @Nullable Consumer<Boolean> finishCallback) {
+        // LC-Note: Enforce the same rule for direct popup and keyboard callers.
+        if (!DeckUiPolicy.canAddToWorkspace(mContext, item)) {
+            if (finishCallback != null) {
+                finishCallback.accept(false);
+            }
+            return false;
+        }
         // Dismiss widget resize frame if it is showing. The frame marks its cells as unoccupied
         // while it is showing, so findSpaceOnWorkspace may try to use those cells.
         AbstractFloatingView.closeOpenViews(mContext, /* animate= */ false,

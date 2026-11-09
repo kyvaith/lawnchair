@@ -1,4 +1,5 @@
 import app.cash.licensee.SpdxId
+import com.android.build.api.variant.ResValue
 import com.android.build.gradle.api.AndroidBasePlugin
 import org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -141,11 +142,69 @@ final def devReleaseName = ciBuild ? "Dev.(#${ciRunNumber})" : "Dev.(${buildComm
 
 final def version = "16"
 final def releaseName = "Beta 1"
-final def versionDisplayName = "${version}.${isReleaseBuild ? releaseName : devReleaseName}"
+final def versionDisplayName = "${version}.${isReleaseBuild ? releaseName : devReleaseName}.FolderSort1"
 final def majorVersion = versionDisplayName.split("\\.")[0]
 
 final def quickstepMinSdk = "35"
 final def quickstepMaxSdk = "36"
+
+// LC-Note: Fork releases require an explicitly configured, non-debug signing key.
+final def keystorePropertiesFile = rootProject.file(
+        providers.environmentVariable("LAWNCHAIR_KEYSTORE_PROPERTIES").orElse("keystore.properties").get())
+final def keystoreProperties = new Properties()
+if (keystorePropertiesFile.isFile()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+final def releaseStorePassword = providers.environmentVariable("LAWNCHAIR_KEYSTORE_PASSWORD")
+        .orElse(keystoreProperties.getProperty("storePassword", "")).get()
+final def releaseKeyPassword = providers.environmentVariable("LAWNCHAIR_KEY_PASSWORD")
+        .orElse(keystoreProperties.getProperty("keyPassword", "")).get()
+final def releaseKeyAlias = keystoreProperties.getProperty("keyAlias", "")
+final def releaseStoreFile = keystoreProperties.getProperty("storeFile", "")
+def releaseSigningProblem = null
+def releaseCertificateSha256 = ""
+if (!releaseStoreFile || !releaseKeyAlias || !releaseStorePassword || !releaseKeyPassword) {
+    releaseSigningProblem = "Release signing is not configured. See docs/fork-release.md. Debug keys are never used for Release."
+} else {
+    try {
+        def store = java.security.KeyStore.getInstance(rootProject.file(releaseStoreFile), releaseStorePassword.toCharArray())
+        def certificate = store.getCertificate(releaseKeyAlias)
+        if (!store.isKeyEntry(releaseKeyAlias) || certificate == null) {
+            releaseSigningProblem = "The configured release key alias does not identify a private signing key."
+        } else if (certificate.subjectX500Principal.name.split(',').any { it.trim().equalsIgnoreCase("CN=Android Debug") }) {
+            releaseSigningProblem = "An Android Debug certificate cannot be used for Release. Configure the permanent fork key."
+        } else {
+            store.getKey(releaseKeyAlias, releaseKeyPassword.toCharArray())
+            releaseCertificateSha256 = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(certificate.encoded).encodeHex().toString()
+        }
+    } catch (Exception ignored) {
+        releaseSigningProblem = "The release keystore could not be opened. Check the signing file, alias and credentials."
+    }
+}
+final String releaseSigningError = releaseSigningProblem
+final def validateReleaseSigning = tasks.register("validateReleaseSigning") {
+    group = "verification"
+    description = "Rejects Release builds without a valid, non-debug private signing key."
+    doLast {
+        if (releaseSigningError != null) {
+            throw new GradleException(releaseSigningError)
+        }
+    }
+}
+final def forkCertificateFile = rootProject.file("fork/release-certificate.sha256")
+final String expectedForkCertificate = forkCertificateFile.isFile() ? forkCertificateFile.text.trim().toLowerCase(java.util.Locale.ROOT) : ""
+final String actualReleaseCertificate = releaseCertificateSha256
+final def validateForkReleaseSigning = tasks.register("validateForkReleaseSigning") {
+    group = "verification"
+    description = "Checks that the permanent fork signing certificate is used."
+    dependsOn(validateReleaseSigning)
+    doLast {
+        if (!expectedForkCertificate.matches("[0-9a-f]{64}") || actualReleaseCertificate != expectedForkCertificate) {
+            throw new GradleException("The signing certificate does not match fork/release-certificate.sha256. Use the permanent fork key; see docs/fork-release.md.")
+        }
+    }
+}
 
 android {
     namespace "com.android.launcher3"
@@ -205,27 +264,22 @@ android {
         ].collect { proj.file(it) }
     }.flatten().findAll { it.exists() }.toArray()
 
-    def releaseSigning
-    try {
-        def keystoreProperties = new Properties()
-        keystoreProperties.load(rootProject.file("keystore.properties").newInputStream())
-        releaseSigning = signingConfigs.create("release") {
-            keyAlias keystoreProperties['keyAlias']
-            keyPassword keystoreProperties['keyPassword']
-            storeFile rootProject.file(keystoreProperties['storeFile'])
-            storePassword keystoreProperties['storePassword']
+    def releaseSigning = signingConfigs.create("release") {
+        if (releaseSigningError == null) {
+            keyAlias releaseKeyAlias
+            keyPassword releaseKeyPassword
+            storeFile rootProject.file(releaseStoreFile)
+            storePassword releaseStorePassword
         }
-    } catch (Exception ignored) {
-        releaseSigning = signingConfigs.debug
     }
 
     buildTypes {
         all {
-            signingConfig releaseSigning
             pseudoLocalesEnabled true
         }
 
         debug {
+            signingConfig signingConfigs.debug
             applicationIdSuffix ".debug"
             resValue("string", "derived_app_name", "Lawnchair (Debug)")
 
@@ -236,6 +290,7 @@ android {
         }
 
         release {
+            signingConfig releaseSigning
             resValue("string", "derived_app_name", "Lawnchair")
             minifyEnabled true
             shrinkResources true
@@ -271,6 +326,13 @@ android {
             dimension "channel"
         }
 
+        fork {
+            applicationId 'app.kyvaith.lawnchair'
+            dimension "channel"
+            versionCode 16_00_02_01_02
+            versionNameSuffix ".Drawerless2"
+        }
+
         nightly {
             applicationId 'app.lawnchair.nightly'
             dimension "channel"
@@ -282,9 +344,6 @@ android {
             isDefault true
         }
 
-        configureEach {
-            resValue("string", "launcher_component", "${applicationId}/app.lawnchair.LawnchairLauncher")
-        }
     }
 
     sourceSets {
@@ -319,12 +378,20 @@ android {
             manifest.srcFile "github/AndroidManifest.xml"
         }
 
+        fork {
+            manifest.srcFile "github/AndroidManifest.xml"
+        }
+
         nightly {
             manifest.srcFile "nightly/AndroidManifest.xml"
             res.srcDirs = ["nightly/res"]
         }
 
         lawnWithQuickstepGithub {
+            manifest.srcFile "quickstep/AndroidManifest-launcher.xml"
+        }
+
+        lawnWithQuickstepFork {
             manifest.srcFile "quickstep/AndroidManifest-launcher.xml"
         }
 
@@ -348,12 +415,23 @@ android {
 androidComponents {
     onVariants(selector().all()) { variant ->
         def channel = variant.productFlavors.last().second
+        variant.resValues.put(variant.makeResValueKey("string", "launcher_component"),
+                variant.applicationId.map { id -> new ResValue("${id}/app.lawnchair.LawnchairLauncher", "Final application ID including build type suffix") })
+        if (channel == "fork") {
+            variant.resValues.put(variant.makeResValueKey("string", "derived_app_name"),
+                    new ResValue(variant.buildType == "debug" ? "Lawnchair Drawerless (Debug)" : "Lawnchair Drawerless", "Fork application name"))
+        }
         variant.outputs.forEach { output ->
             output.outputFileName.set("Lawnchair.${output.versionName.get()}.$channel.${variant.buildType}.apk")
         }
 
         // Lawnchair-TODO: A better way to sync proto file to the IDE preventing missing or outdated result. Please remove if this is the best solution we have right now
         def capitalizedVariantName = variant.name.substring(0, 1).toUpperCase(java.util.Locale.ROOT) + variant.name.substring(1)
+        if (variant.buildType == "release") {
+            tasks.matching { it.name == "pre${capitalizedVariantName}Build" }.configureEach {
+                dependsOn(channel == "fork" ? validateForkReleaseSigning : validateReleaseSigning)
+            }
+        }
         def generatedProtoJavaDir = layout.buildDirectory
             .dir("generated/java/generate${capitalizedVariantName}Proto/java")
             .get()

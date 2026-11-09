@@ -69,10 +69,7 @@ import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import app.lawnchair.deck.LawndeckManager;
 import app.lawnchair.preferences.PreferenceManager;
-import app.lawnchair.preferences2.PreferenceManager2;
-import app.lawnchair.preferences2.PreferenceCacheExtensionsKt;
 
 /**
  * Handles updates due to changes in package manager (app installed/updated/removed)
@@ -462,16 +459,6 @@ public class PackageUpdatedTask implements ModelUpdateTask {
                 dataModel.widgetsModel.update(new PackageUserKey(packages[i], mUser));
             }
             taskController.bindUpdatedWidgets(dataModel);
-            
-            // If deck layout is enabled, add newly installed apps to workspace with categorization
-            PreferenceManager2 pref2 = PreferenceManager2.INSTANCE.get(context);
-            if (PreferenceCacheExtensionsKt.firstCached(pref2.getDeckLayout())) {
-                LawndeckManager deckManager = new LawndeckManager(context);
-                ModelWriter modelWriter = taskController.getModelWriter();
-                for (int i = 0; i < packageCount; i++) {
-                    deckManager.addNewlyInstalledApp(packages[i], mUser, modelWriter, dataModel);
-                }
-            }
         }
     }
 

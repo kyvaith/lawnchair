@@ -122,6 +122,11 @@ object LauncherDbUtils {
         context: Context,
     ) {
         val userSerial = UserCache.INSTANCE[context].getSerialNumberForUser(Process.myUserHandle())
+        // LC-Note: Replacing Favorites during a grid migration can reuse unrelated folder IDs.
+        // Keep their native order, but do not attach stale sorting metadata from the old target.
+        if (toTable == LauncherSettings.Favorites.TABLE_NAME) {
+            app.lawnchair.folders.FolderSortStore.clear(toDb)
+        }
         dropTable(toDb, toTable)
         LauncherSettings.Favorites.addTableToDb(toDb, userSerial, false, toTable)
         if (fromDb != toDb) {

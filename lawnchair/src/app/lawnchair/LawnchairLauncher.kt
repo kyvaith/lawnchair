@@ -35,6 +35,9 @@ import app.lawnchair.LawnchairApp.Companion.showQuickstepWarningIfNecessary
 import app.lawnchair.compat.LawnchairQuickstepCompat
 import app.lawnchair.data.AppDatabase
 import app.lawnchair.data.wallpaper.service.WallpaperService
+import app.lawnchair.deck.DeckAppSearch
+import app.lawnchair.deck.DeckUiPolicy
+import app.lawnchair.folders.FolderSortController
 import app.lawnchair.gestures.GestureController
 import app.lawnchair.gestures.VerticalSwipeTouchController
 import app.lawnchair.gestures.config.GestureHandlerConfig
@@ -63,6 +66,8 @@ import com.android.launcher3.LauncherState
 import com.android.launcher3.R
 import com.android.launcher3.Utilities
 import com.android.launcher3.folder.FolderIcon
+import com.android.launcher3.logging.InstanceId
+import com.android.launcher3.logging.StatsLogManager
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.model.data.PredictedContainerInfo
 import com.android.launcher3.popup.SystemShortcut
@@ -167,6 +172,11 @@ class LawnchairLauncher : QuickstepLauncher() {
             defaultOverlay.setEnableFeed(enable)
         }.launchIn(scope = lifecycleScope)
         launcher.stateManager.addStateListener(clearSearchStateListener)
+        preferenceManager2.deckLayout.get().distinctUntilChanged().onEach { enabled ->
+            if (enabled && stateManager.state == LauncherState.ALL_APPS) {
+                stateManager.goToState(LauncherState.NORMAL, false)
+            }
+        }.launchIn(scope = lifecycleScope)
 
         if (prefs.autoLaunchRoot.get()) {
             lifecycleScope.launch {
@@ -253,6 +263,16 @@ class LawnchairLauncher : QuickstepLauncher() {
     }
 
     override fun onNewIntent(intent: Intent?) {
+        if (DeckUiPolicy.isEnabled(this) && intent?.action in setOf(
+                Intent.ACTION_ALL_APPS,
+                INTENT_ACTION_ALL_APPS_TOGGLE,
+                Intent.ACTION_SHOW_WORK_APPS,
+            )
+        ) {
+            stateManager.goToState(LauncherState.NORMAL)
+            DeckAppSearch.show(this)
+            return
+        }
         if (intent != null && intent.action == LawnchairShortcutActivity.START_ACTION) {
             val handlerString = intent.getStringExtra(LawnchairShortcutActivity.EXTRA_HANDLER)
             val config = handlerString?.let { GestureHandlerConfig.fromString(it) }
@@ -269,9 +289,21 @@ class LawnchairLauncher : QuickstepLauncher() {
         out.add(SearchBarStateHandler(this))
     }
 
+    override fun canGoToState(state: LauncherState): Boolean = DeckUiPolicy.canGoToState(this, state)
+
+    override fun toggleAllApps(focusSearch: Boolean) {
+        if (DeckUiPolicy.isEnabled(this)) {
+            DeckAppSearch.show(this)
+        } else {
+            super.toggleAllApps(focusSearch)
+        }
+    }
+
     override fun getAllAppsItemLongClickListener(): View.OnLongClickListener {
         return View.OnLongClickListener { view ->
-            if (view is FolderIcon && view.mInfo.id != ItemInfo.NO_ID) {
+            if (DeckUiPolicy.isEnabled(this)) {
+                false
+            } else if (view is FolderIcon && view.mInfo.id != ItemInfo.NO_ID) {
                 LawnchairShortcut.showAppDrawerFolderPopup(this, view)
             } else {
                 super.getAllAppsItemLongClickListener().onLongClick(view)
@@ -286,6 +318,11 @@ class LawnchairLauncher : QuickstepLauncher() {
             if (LawnchairApp.isRecentsEnabled) Stream.of(LawnchairShortcut.PAUSE_APPS) else Stream.empty(),
         ),
     )
+
+    override fun logAppLaunch(statsLogManager: StatsLogManager, info: ItemInfo, instanceId: InstanceId) {
+        super.logAppLaunch(statsLogManager, info, instanceId)
+        FolderSortController.recordLaunch(this, info)
+    }
 
     fun updateTheme() {
         if (themeProvider.colorScheme != colorScheme) {

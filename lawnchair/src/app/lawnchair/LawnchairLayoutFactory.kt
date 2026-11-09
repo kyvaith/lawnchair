@@ -6,8 +6,12 @@ import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
 import android.widget.TextView
+import app.lawnchair.folders.LawnchairFolder
+import app.lawnchair.folders.LawnchairFolderIcon
 import app.lawnchair.font.FontManager
 import com.android.launcher3.BubbleTextView
+import com.android.launcher3.folder.Folder
+import com.android.launcher3.folder.FolderIcon
 import com.android.launcher3.util.SafeCloseable
 import com.android.launcher3.views.DoubleShadowBubbleTextView
 
@@ -21,6 +25,8 @@ class LawnchairLayoutFactory(context: Context) :
         "TextView" to ::TextView,
         BubbleTextView::class.java.name to ::BubbleTextView,
         DoubleShadowBubbleTextView::class.java.name to ::DoubleShadowBubbleTextView,
+        Folder::class.java.name to ::LawnchairFolder,
+        FolderIcon::class.java.name to ::LawnchairFolderIcon,
     )
 
     override fun onCreateView(

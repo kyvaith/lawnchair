@@ -54,6 +54,7 @@ import java.util.Arrays;
 
 import app.lawnchair.preferences2.PreferenceCacheExtensionsKt;
 import app.lawnchair.preferences2.PreferenceManager2;
+import app.lawnchair.deck.DeckUiPolicy;
 
 /**
  * Represents a system shortcut for a given app. The shortcut should have a label and icon, and an
@@ -267,6 +268,11 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
         if (isHomeLocked(context)) {
             return null;
         }
+        // LC-Note: Deck apps and collections cannot be removed through the long-press menu.
+        if (DeckUiPolicy.isEnabled(context.asContext())
+                && !DeckUiPolicy.canRemove(context.asContext(), itemInfo)) {
+            return null;
+        }
         return new RemoveApp<>(context, itemInfo, originalView);
     };
 
@@ -279,6 +285,11 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
 
         @Override
         public void onClick(View view) {
+            // LC-Note: Recheck in case the layout changed after this menu was created.
+            if (DeckUiPolicy.isEnabled(mTarget.asContext())
+                    && !DeckUiPolicy.canRemove(mTarget.asContext(), mItemInfo)) {
+                return;
+            }
             AbstractFloatingView.closeAllOpenViewsExcept(mTarget, TYPE_FOLDER);
             DropTargetHandler dropTargetHandler =
                     ActivityContext.lookupContext(view.getContext()).getDropTargetHandler();

@@ -16,6 +16,9 @@ build
 .DS_Store
 keystore.properties
 *.jks
+*.p12
+*.keystore
+.signing/
 __pycache__
 .vscode
 .fleet
